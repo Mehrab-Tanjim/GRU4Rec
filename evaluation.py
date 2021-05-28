@@ -12,7 +12,7 @@ import theano
 from theano import tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-def evaluate_gpu(gru, test_data, items=None, session_key='SessionId', item_key='ItemId', time_key='Time', cut_off=20, batch_size=100, mode='standard'):
+def evaluate_gpu(gru, test_data, cut_off, items=None, session_key='SessionId', item_key='ItemId', time_key='Time', batch_size=100, mode='standard'):
     '''
     Evaluates the GRU4Rec network quickly wrt. recommendation accuracy measured by recall@N and MRR@N.
 
@@ -45,7 +45,7 @@ def evaluate_gpu(gru, test_data, items=None, session_key='SessionId', item_key='
     
     '''
     if gru.error_during_train: raise Exception
-    print('Measuring Recall@{} and MRR@{}'.format(cut_off, cut_off))
+    print('Measuring Recall@{} and NDCG@{}'.format(cut_off, cut_off))
     srng = RandomStreams()
     X = T.ivector()
     Y = T.ivector()
@@ -65,7 +65,7 @@ def evaluate_gpu(gru, test_data, items=None, session_key='SessionId', item_key='
     elif mode == 'tiebreaking': ranks = (others > targets).sum(axis=0) + 1
     else: raise NotImplementedError
     REC = (ranks <= cut_off).sum()
-    MRR = ((ranks <= cut_off) / ranks).sum()
+    MRR = ((ranks <= cut_off) / np.log2(ranks + 1)).sum()
     evaluate = theano.function(inputs=[X, Y, M] + C, outputs=[REC, MRR], updates=updatesH, allow_input_downcast=True, on_unused_input='ignore')
     test_data = pd.merge(test_data, pd.DataFrame({'ItemIdx':gru.itemidmap.values, item_key:gru.itemidmap.index}), on=item_key, how='inner')
     test_data.sort_values([session_key, time_key, item_key], inplace=True)
@@ -91,10 +91,11 @@ def evaluate_gpu(gru, test_data, items=None, session_key='SessionId', item_key='
                 y = np.hstack([out_idx, item_idxs])
             else:
                 y = out_idx
-            rec, m = evaluate(in_idx, y, len(iters), *cidxs)
-            recall += rec
-            mrr += m
-            n += len(iters)
+            if i == minlen-2:
+              rec, m = evaluate(in_idx, y, len(iters), *cidxs)
+              recall += rec
+              mrr += m
+              n += len(iters)
         start = start+minlen-1
         finished_mask = (end-start<=1)
         n_finished = finished_mask.sum()
