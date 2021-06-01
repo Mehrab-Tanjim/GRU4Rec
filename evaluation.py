@@ -12,7 +12,7 @@ import theano
 from theano import tensor as T
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
-def evaluate_gpu(gru, test_data, cut_off, items=None, session_key='SessionId', item_key='ItemId', time_key='Time', batch_size=100, mode='standard'):
+def evaluate_gpu(gru, test_data, cut_off, items=None, session_key='SessionId', item_key='ItemId', time_key='Time', batch_size=1, mode='standard'):
     '''
     Evaluates the GRU4Rec network quickly wrt. recommendation accuracy measured by recall@N and MRR@N.
 
@@ -83,6 +83,7 @@ def evaluate_gpu(gru, test_data, cut_off, items=None, session_key='SessionId', i
     cidxs = []
     while not finished:
         minlen = (end-start).min()
+        print(minlen)
         out_idx = test_data_items[start]
         for i in range(minlen-1):
             in_idx = out_idx
@@ -91,11 +92,11 @@ def evaluate_gpu(gru, test_data, cut_off, items=None, session_key='SessionId', i
                 y = np.hstack([out_idx, item_idxs])
             else:
                 y = out_idx
-            if i == minlen-2:
-              rec, m = evaluate(in_idx, y, len(iters), *cidxs)
-              recall += rec
-              mrr += m
-              n += len(iters)
+            # if i == minlen-2:
+            rec, m = evaluate(in_idx, y, len(iters), *cidxs)
+        recall += rec
+        mrr += m
+        n += len(iters)
         start = start+minlen-1
         finished_mask = (end-start<=1)
         n_finished = finished_mask.sum()
